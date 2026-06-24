@@ -46,7 +46,7 @@ export default function Home() {
   }, []);
 
   const handleFile = useCallback((file: File) => {
-    if (!file || !file.type.startsWith("image/")) return;
+   if (!file || (!file.type.startsWith("image/") && file.type !== "application/pdf")) return;
     setResult(null); setError(null);
     setImage(URL.createObjectURL(file));
     const reader = new FileReader();
@@ -298,7 +298,7 @@ Format:
               background: dragOver ? "#fafafa" : "#fff",
             }}
           >
-            <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}}
+         <input ref={fileRef} type="file" accept="image/*,application/pdf" style={{display:"none"}}
               onChange={e => e.target.files && handleFile(e.target.files[0])} />
             {image ? (
               <div style={{position:"relative"}}>
@@ -319,7 +319,7 @@ Format:
                   Drop file or click to browse
                 </div>
                 <div style={{fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",color:"#e0e0e0"}}>
-                  JPG · PNG · WEBP · Phone photos welcome
+                 JPG · PNG · WEBP · PDF · Phone photos welcome
                 </div>
               </>
             )}
