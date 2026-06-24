@@ -20,7 +20,6 @@ const FLOATING_IMAGES = [
   { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Debussy_hotel_terminus.jpg/330px-Debussy_hotel_terminus.jpg", label: "Debussy", x: 38, y: 72, rot: 2, size: 160 },
   { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/ShostakovichLarge.jpg/330px-ShostakovichLarge.jpg", label: "Shostakovich", x: 60, y: 20, rot: -2, size: 150 },
   { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Above_Gotham.jpg/440px-Above_Gotham.jpg", label: "NYC", x: 20, y: 30, rot: 4, size: 155 },
-  { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/ShostakovichLarge.jpg/330px-ShostakovichLarge.jpg", label: "Score", x: 50, y: 5, rot: -5, size: 150 },
 ];
 
 const GEMINI_KEY = process.env.NEXT_PUBLIC_GEMINI_KEY || "";
@@ -75,14 +74,13 @@ export default function Home() {
 
 Format:
 ## Song info
-## Lead sheet — ${targetKey === "Keep original" ? "original key" : `key of ${targetKey}`}
+## Lead sheet
 ## Piano arrangement notes
 ## Practice tips`;
 
     const isPDF = imageBase64.type === "application/pdf";
-const contentPart = isPDF
-  ? { inline_data: { mime_type: "application/pdf", data: imageBase64.data } }
-  : { inline_data: { mime_type: imageBase64.type, data: imageBase64.data } };
+    const filePart = isPDF
+      ? { inline_data: { mime_type: "application/pdf", data: imageBase64.data } }
       : { inline_data: { mime_type: imageBase64.type, data: imageBase64.data } };
 
     try {
@@ -92,7 +90,7 @@ const contentPart = isPDF
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            contents: [{ parts: [contentPart, { text: prompt }] }]
+            contents: [{ parts: [filePart, { text: prompt }] }]
           })
         }
       );
@@ -270,7 +268,6 @@ const contentPart = isPDF
 
       <div style={{maxWidth:760, margin:"0 auto", padding:"0 40px"}}>
 
-        {/* Upload */}
         <div style={{padding:"52px 0", borderBottom:"1px solid #e8e8e8"}}>
           <div style={{fontSize:10,letterSpacing:"0.2em",textTransform:"uppercase",color:"#bbb",marginBottom:20}}>
             Upload your score
@@ -293,10 +290,7 @@ const contentPart = isPDF
             {image ? (
               <div style={{position:"relative"}}>
                 {image === "pdf" ? (
-                  <div style={{
-                    padding:"48px 32px", background:"#fafafa",
-                    textAlign:"center",
-                  }}>
+                  <div style={{padding:"48px 32px", background:"#fafafa", textAlign:"center"}}>
                     <div style={{fontSize:40, marginBottom:12}}>📄</div>
                     <div style={{fontSize:10,letterSpacing:"0.2em",textTransform:"uppercase",color:"#999"}}>
                       PDF uploaded
@@ -328,7 +322,6 @@ const contentPart = isPDF
           </div>
         </div>
 
-        {/* Key */}
         {step >= 1 && (
           <div style={{padding:"52px 0", borderBottom:"1px solid #e8e8e8"}}>
             <div style={{fontSize:10,letterSpacing:"0.2em",textTransform:"uppercase",color:"#bbb",marginBottom:20}}>
@@ -349,7 +342,6 @@ const contentPart = isPDF
           </div>
         )}
 
-        {/* Level */}
         {step >= 2 && (
           <div style={{padding:"52px 0", borderBottom:"1px solid #e8e8e8"}}>
             <div style={{fontSize:10,letterSpacing:"0.2em",textTransform:"uppercase",color:"#bbb",marginBottom:20}}>
@@ -399,7 +391,6 @@ const contentPart = isPDF
           </div>
         )}
 
-        {/* Result */}
         {step >= 3 && result && (
           <div style={{padding:"52px 0"}}>
             <div style={{fontSize:10,letterSpacing:"0.2em",textTransform:"uppercase",color:"#bbb",marginBottom:10}}>
