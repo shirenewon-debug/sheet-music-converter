@@ -80,8 +80,9 @@ Format:
 ## Practice tips`;
 
     const isPDF = imageBase64.type === "application/pdf";
-    const contentPart = isPDF
-      ? { document: { source: { type: "base64", media_type: "application/pdf", data: imageBase64.data } } }
+const contentPart = isPDF
+  ? { inline_data: { mime_type: "application/pdf", data: imageBase64.data } }
+  : { inline_data: { mime_type: imageBase64.type, data: imageBase64.data } };
       : { inline_data: { mime_type: imageBase64.type, data: imageBase64.data } };
 
     try {
