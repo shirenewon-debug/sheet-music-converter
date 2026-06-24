@@ -12,16 +12,15 @@ const DIFFS = [
   {id:"expert",label:"Expert",desc:"Concert-level, full harmony"},
 ];
 
-// Public domain / freely licensed images from Wikimedia Commons
 const FLOATING_IMAGES = [
   { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Laufey_2023_%28cropped%29.jpg/440px-Laufey_2023_%28cropped%29.jpg", label: "Laufey", x: 5, y: 8, rot: -4, size: 200 },
-  { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg/402px-Mona_Lisa%2C_by_Leonardo_da_Vinci%2C_from_C2RMF_retouched.jpg", label: "Classical", x: 72, y: 5, rot: 3, size: 160 },
-  { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Johann_Sebastian_Bach.jpg/330px-Johann_Sebastian_Bach.jpg", label: "Bach", x: 80, y: 55, rot: 5, size: 180 },
-  { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Beethoven.jpg/330px-Beethoven.jpg", label: "Beethoven", x: 3, y: 58, rot: -3, size: 175 },
-  { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Frederic_Chopin_photo.jpeg/330px-Frederic_Chopin_photo.jpeg", label: "Chopin", x: 38, y: 72, rot: 2, size: 160 },
-  { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Above_Gotham.jpg/440px-Above_Gotham.jpg", label: "NYC", x: 60, y: 20, rot: -2, size: 190 },
-  { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Debussy_hotel_terminus.jpg/330px-Debussy_hotel_terminus.jpg", label: "Debussy", x: 20, y: 30, rot: 4, size: 155 },
-  { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/ShostakovichLarge.jpg/330px-ShostakovichLarge.jpg", label: "Shostakovich", x: 50, y: 5, rot: -5, size: 150 },
+  { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/Johann_Sebastian_Bach.jpg/330px-Johann_Sebastian_Bach.jpg", label: "Bach", x: 72, y: 5, rot: 3, size: 160 },
+  { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/Beethoven.jpg/330px-Beethoven.jpg", label: "Beethoven", x: 80, y: 55, rot: 5, size: 180 },
+  { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Frederic_Chopin_photo.jpeg/330px-Frederic_Chopin_photo.jpeg", label: "Chopin", x: 3, y: 58, rot: -3, size: 175 },
+  { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Debussy_hotel_terminus.jpg/330px-Debussy_hotel_terminus.jpg", label: "Debussy", x: 38, y: 72, rot: 2, size: 160 },
+  { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/ShostakovichLarge.jpg/330px-ShostakovichLarge.jpg", label: "Shostakovich", x: 60, y: 20, rot: -2, size: 150 },
+  { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Above_Gotham.jpg/440px-Above_Gotham.jpg", label: "NYC", x: 20, y: 30, rot: 4, size: 155 },
+  { src: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/ShostakovichLarge.jpg/330px-ShostakovichLarge.jpg", label: "Score", x: 50, y: 5, rot: -5, size: 150 },
 ];
 
 const GEMINI_KEY = process.env.NEXT_PUBLIC_GEMINI_KEY || "";
@@ -46,9 +45,13 @@ export default function Home() {
   }, []);
 
   const handleFile = useCallback((file: File) => {
-   if (!file || (!file.type.startsWith("image/") && file.type !== "application/pdf")) return;
+    if (!file || (!file.type.startsWith("image/") && file.type !== "application/pdf")) return;
     setResult(null); setError(null);
-    setImage(URL.createObjectURL(file));
+    if (file.type.startsWith("image/")) {
+      setImage(URL.createObjectURL(file));
+    } else {
+      setImage("pdf");
+    }
     const reader = new FileReader();
     reader.onload = (e) => {
       const b64 = (e.target?.result as string).split(",")[1];
@@ -75,14 +78,21 @@ Format:
 ## Lead sheet — ${targetKey === "Keep original" ? "original key" : `key of ${targetKey}`}
 ## Piano arrangement notes
 ## Practice tips`;
+
+    const isPDF = imageBase64.type === "application/pdf";
+    const contentPart = isPDF
+      ? { document: { source: { type: "base64", media_type: "application/pdf", data: imageBase64.data } } }
+      : { inline_data: { mime_type: imageBase64.type, data: imageBase64.data } };
+
     try {
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
-        { method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({ contents:[{ parts:[
-            { inline_data:{ mime_type: imageBase64.type, data: imageBase64.data }},
-            { text: prompt }
-          ]}]})
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [contentPart, { text: prompt }] }]
+          })
         }
       );
       const data = await res.json();
@@ -122,14 +132,12 @@ Format:
   const selectedDiff = DIFFS.find(d => d.id === difficulty);
   const t = tick * 0.012;
 
-  // Landing screen
   if (!entered) {
     return (
       <main className={lora.className} style={{
         minHeight:"100vh", background:"#080808", color:"#fff",
-        position:"relative", overflow:"hidden", cursor:"default",
+        position:"relative", overflow:"hidden",
       }}>
-        {/* Floating images */}
         {FLOATING_IMAGES.map((img, i) => {
           const drift = Math.sin(t * 0.4 + i * 1.1) * 12;
           const driftY = Math.cos(t * 0.3 + i * 0.8) * 8;
@@ -137,21 +145,18 @@ Format:
           return (
             <div key={i} style={{
               position:"absolute",
-              left: `${img.x}%`,
-              top: `${img.y}%`,
-              transform: `translate(${drift}px, ${driftY}px) rotate(${rotate}deg)`,
+              left:`${img.x}%`, top:`${img.y}%`,
+              transform:`translate(${drift}px, ${driftY}px) rotate(${rotate}deg)`,
               transition:"transform 0.1s linear",
               zIndex:1,
             }}>
               <img
-                src={img.src}
-                alt={img.label}
+                src={img.src} alt={img.label}
                 width={img.size}
                 style={{
                   display:"block",
                   filter:"grayscale(30%) brightness(0.55) contrast(1.1)",
-                  objectFit:"cover",
-                  height: img.size * 1.3,
+                  objectFit:"cover", height:img.size * 1.3,
                 }}
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
@@ -163,13 +168,11 @@ Format:
           );
         })}
 
-        {/* Dark overlay gradient */}
         <div style={{
           position:"absolute", inset:0, zIndex:2,
           background:"radial-gradient(ellipse at center, rgba(8,8,8,0.4) 0%, rgba(8,8,8,0.85) 100%)",
         }} />
 
-        {/* Center content */}
         <div style={{
           position:"absolute", inset:0, zIndex:3,
           display:"flex", flexDirection:"column",
@@ -182,18 +185,17 @@ Format:
           <h1 style={{
             fontSize:"clamp(40px,7vw,80px)",
             fontWeight:400, fontStyle:"italic",
-            lineHeight:1.05, margin:"0 0 20px",
-            color:"#fff",
+            lineHeight:1.05, margin:"0 0 20px", color:"#fff",
             letterSpacing:"-0.02em",
           }}>
             Irene's<br />Piano Coach
           </h1>
           <p style={{
             fontSize:14, color:"rgba(255,255,255,0.45)",
-            lineHeight:1.8, maxWidth:360, margin:"0 0 48px",
-            fontStyle:"italic",
+            lineHeight:1.8, maxWidth:360, margin:"0 0 48px", fontStyle:"italic",
           }}>
-            Upload any sheet music. Choose your key and level.<br />
+            Upload any sheet music — image or PDF.<br />
+            Choose your key and level.<br />
             Receive your perfect arrangement.
           </p>
           <button
@@ -201,14 +203,9 @@ Format:
             style={{
               padding:"14px 48px",
               border:"1px solid rgba(255,255,255,0.3)",
-              background:"transparent",
-              color:"#fff",
-              fontSize:10,
-              letterSpacing:"0.3em",
-              textTransform:"uppercase",
-              cursor:"pointer",
-              fontFamily:"inherit",
-              transition:"all 0.3s",
+              background:"transparent", color:"#fff",
+              fontSize:10, letterSpacing:"0.3em", textTransform:"uppercase",
+              cursor:"pointer", fontFamily:"inherit", transition:"all 0.3s",
             }}
             onMouseEnter={e => {
               (e.target as HTMLButtonElement).style.background = "rgba(255,255,255,0.1)";
@@ -223,7 +220,6 @@ Format:
           </button>
         </div>
 
-        {/* Bottom label */}
         <div style={{
           position:"absolute", bottom:24, left:0, right:0,
           textAlign:"center", zIndex:3,
@@ -236,32 +232,25 @@ Format:
     );
   }
 
-  // Main app
   return (
-    <main className={lora.className} style={{
-      minHeight:"100vh", background:"#fff", color:"#111",
-    }}>
-      {/* Nav */}
+    <main className={lora.className} style={{minHeight:"100vh", background:"#fff", color:"#111"}}>
+
       <nav style={{
         borderBottom:"1px solid #e8e8e8", padding:"18px 40px",
         display:"flex", alignItems:"center", justifyContent:"space-between",
         position:"sticky", top:0, background:"#fff", zIndex:100,
       }}>
         <button onClick={() => setEntered(false)} style={{
-          fontSize:11,letterSpacing:"0.22em",textTransform:"uppercase",
-          color:"#111",fontWeight:500,background:"none",border:"none",
-          cursor:"pointer",fontFamily:"inherit",padding:0,
+          fontSize:11, letterSpacing:"0.22em", textTransform:"uppercase",
+          color:"#111", fontWeight:500, background:"none", border:"none",
+          cursor:"pointer", fontFamily:"inherit", padding:0,
         }}>
           Irene's Piano Coach
         </button>
-        <div style={{fontSize:20,color:"#ccc",userSelect:"none"}}>𝄞</div>
+        <div style={{fontSize:20, color:"#ccc", userSelect:"none"}}>𝄞</div>
       </nav>
 
-      {/* Hero */}
-      <div style={{
-        padding:"72px 40px 56px", maxWidth:760, margin:"0 auto",
-        borderBottom:"1px solid #e8e8e8",
-      }}>
+      <div style={{padding:"72px 40px 56px", maxWidth:760, margin:"0 auto", borderBottom:"1px solid #e8e8e8"}}>
         <div style={{fontSize:10,letterSpacing:"0.25em",textTransform:"uppercase",color:"#bbb",marginBottom:18}}>
           Sheet Music · Arrangement
         </div>
@@ -272,16 +261,16 @@ Format:
         }}>
           Your sheet music,<br />your key, your level.
         </h1>
-        <p style={{fontSize:14,color:"#999",lineHeight:1.9,margin:0,maxWidth:440,fontStyle:"italic"}}>
+        <p style={{fontSize:14, color:"#999", lineHeight:1.9, margin:0, maxWidth:440, fontStyle:"italic"}}>
           Upload any piece of sheet music and receive a perfectly transposed,
           level-appropriate arrangement — instantly.
         </p>
       </div>
 
-      <div style={{maxWidth:760,margin:"0 auto",padding:"0 40px"}}>
+      <div style={{maxWidth:760, margin:"0 auto", padding:"0 40px"}}>
 
-        {/* Step 1 — Upload */}
-        <div style={{padding:"52px 0",borderBottom:"1px solid #e8e8e8"}}>
+        {/* Upload */}
+        <div style={{padding:"52px 0", borderBottom:"1px solid #e8e8e8"}}>
           <div style={{fontSize:10,letterSpacing:"0.2em",textTransform:"uppercase",color:"#bbb",marginBottom:20}}>
             Upload your score
           </div>
@@ -298,14 +287,26 @@ Format:
               background: dragOver ? "#fafafa" : "#fff",
             }}
           >
-         <input ref={fileRef} type="file" accept="image/*,application/pdf" style={{display:"none"}}
+            <input ref={fileRef} type="file" accept="image/*,application/pdf" style={{display:"none"}}
               onChange={e => e.target.files && handleFile(e.target.files[0])} />
             {image ? (
               <div style={{position:"relative"}}>
-                <img src={image} alt="Sheet music" style={{
-                  width:"100%", maxHeight:320, objectFit:"contain",
-                  display:"block", background:"#fafafa",
-                }} />
+                {image === "pdf" ? (
+                  <div style={{
+                    padding:"48px 32px", background:"#fafafa",
+                    textAlign:"center",
+                  }}>
+                    <div style={{fontSize:40, marginBottom:12}}>📄</div>
+                    <div style={{fontSize:10,letterSpacing:"0.2em",textTransform:"uppercase",color:"#999"}}>
+                      PDF uploaded
+                    </div>
+                  </div>
+                ) : (
+                  <img src={image} alt="Sheet music" style={{
+                    width:"100%", maxHeight:320, objectFit:"contain",
+                    display:"block", background:"#fafafa",
+                  }} />
+                )}
                 <div style={{
                   position:"absolute", bottom:16, right:16,
                   background:"#fff", border:"1px solid #e0e0e0",
@@ -319,20 +320,20 @@ Format:
                   Drop file or click to browse
                 </div>
                 <div style={{fontSize:9,letterSpacing:"0.15em",textTransform:"uppercase",color:"#e0e0e0"}}>
-                 JPG · PNG · WEBP · PDF · Phone photos welcome
+                  JPG · PNG · WEBP · PDF
                 </div>
               </>
             )}
           </div>
         </div>
 
-        {/* Step 2 — Key */}
+        {/* Key */}
         {step >= 1 && (
-          <div style={{padding:"52px 0",borderBottom:"1px solid #e8e8e8"}}>
+          <div style={{padding:"52px 0", borderBottom:"1px solid #e8e8e8"}}>
             <div style={{fontSize:10,letterSpacing:"0.2em",textTransform:"uppercase",color:"#bbb",marginBottom:20}}>
               Select key
             </div>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom: targetKey ? 28 : 0}}>
+            <div style={{display:"flex", flexWrap:"wrap", gap:6}}>
               {KEYS.map(k => (
                 <button key={k} onClick={() => { setTargetKey(k); if(step < 2) setStep(2); }} style={{
                   padding:"9px 16px",
@@ -341,19 +342,19 @@ Format:
                   color: targetKey===k ? "#fff" : "#999",
                   fontSize:11, letterSpacing:"0.06em",
                   cursor:"pointer", fontFamily:"inherit", transition:"all 0.15s",
-                }}>{k === "Keep original" ? "Keep original" : k}</button>
+                }}>{k}</button>
               ))}
             </div>
           </div>
         )}
 
-        {/* Step 3 — Level */}
+        {/* Level */}
         {step >= 2 && (
-          <div style={{padding:"52px 0",borderBottom:"1px solid #e8e8e8"}}>
+          <div style={{padding:"52px 0", borderBottom:"1px solid #e8e8e8"}}>
             <div style={{fontSize:10,letterSpacing:"0.2em",textTransform:"uppercase",color:"#bbb",marginBottom:20}}>
               Choose level
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:1,background:"#e8e8e8",marginBottom:32}}>
+            <div style={{display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:1, background:"#e8e8e8", marginBottom:32}}>
               {DIFFS.map(d => (
                 <button key={d.id} onClick={() => setDifficulty(d.id)} style={{
                   padding:"28px 16px", border:"none",
@@ -363,11 +364,11 @@ Format:
                   transition:"background 0.2s, color 0.2s",
                 }}>
                   <div style={{
-                    fontSize:10,fontWeight:500,letterSpacing:"0.14em",
-                    textTransform:"uppercase",marginBottom:10,
+                    fontSize:10, fontWeight:500, letterSpacing:"0.14em",
+                    textTransform:"uppercase", marginBottom:10,
                   }}>{d.label}</div>
                   <div style={{
-                    fontSize:11,fontStyle:"italic",lineHeight:1.6,
+                    fontSize:11, fontStyle:"italic", lineHeight:1.6,
                     color: difficulty===d.id ? "rgba(255,255,255,0.55)" : "#bbb",
                   }}>{d.desc}</div>
                 </button>
@@ -377,7 +378,7 @@ Format:
             {difficulty && (
               <>
                 {error && (
-                  <div style={{marginBottom:14,fontSize:12,color:"#c04040",letterSpacing:"0.04em"}}>
+                  <div style={{marginBottom:14, fontSize:12, color:"#c04040", letterSpacing:"0.04em"}}>
                     {error}
                   </div>
                 )}
@@ -397,15 +398,15 @@ Format:
           </div>
         )}
 
-        {/* Step 4 — Result */}
+        {/* Result */}
         {step >= 3 && result && (
           <div style={{padding:"52px 0"}}>
             <div style={{fontSize:10,letterSpacing:"0.2em",textTransform:"uppercase",color:"#bbb",marginBottom:10}}>
               Your arrangement
             </div>
             <div style={{
-              fontSize:10,letterSpacing:"0.14em",textTransform:"uppercase",
-              color:"#ccc",marginBottom:36,
+              fontSize:10, letterSpacing:"0.14em", textTransform:"uppercase",
+              color:"#ccc", marginBottom:36,
             }}>
               {targetKey === "Keep original" ? "Original key" : `Key of ${targetKey}`}
               &nbsp;&nbsp;·&nbsp;&nbsp;
@@ -418,7 +419,7 @@ Format:
             }}>
               {result}
             </div>
-            <div style={{display:"flex",gap:10,borderTop:"1px solid #e8e8e8",paddingTop:32}}>
+            <div style={{display:"flex", gap:10, borderTop:"1px solid #e8e8e8", paddingTop:32}}>
               <button onClick={handleDownload} style={{
                 padding:"13px 32px", border:"1px solid #111",
                 background:"#111", color:"#fff", fontSize:10,
